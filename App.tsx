@@ -7,38 +7,75 @@ import { chatService } from './services/geminiService';
 import { Message, Role, ModelType } from './types';
 import { DEFAULT_MODEL } from './constants';
 import { v4 as uuidv4 } from 'uuid';
+import { Content } from '@google/genai';
+import { extractCodeFromMessages, triggerDownload } from './utils/downloadUtils';
+
+const STORAGE_KEY_MESSAGES = 'spurify_chat_messages';
+const STORAGE_KEY_MODEL = 'spurify_chat_model';
 
 const App: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Initialize state from local storage or defaults
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_MESSAGES);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Failed to load messages from storage", e);
+      return [];
+    }
+  });
+
+  const [model, setModel] = useState<ModelType>(() => {
+    return (localStorage.getItem(STORAGE_KEY_MODEL) as ModelType) || DEFAULT_MODEL;
+  });
+
   const [isLoading, setIsLoading] = useState(false);
-  const [model, setModel] = useState<ModelType>(DEFAULT_MODEL);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const initialized = useRef(false);
 
-  // Initialize Chat Service on mount or model change
+  // Initialize Chat Service on mount (with history)
   useEffect(() => {
-    try {
-      chatService.initChat(model);
-      // Optional: Add a welcome message if empty
-      if (messages.length === 0) {
-        setMessages([
-          {
-            id: 'welcome',
-            role: Role.MODEL,
-            text: `## Hello, Developer! 🚀\nI'm **Spurify Code**. I can help you with:\n\n- Writing and Refactoring Code\n- Debugging Errors\n- Explaining Complex Concepts\n\nI am currently running on **${model}**. How can I assist you today?`,
-            timestamp: Date.now(),
-          }
-        ]);
+    if (!initialized.current) {
+      try {
+        // Convert existing messages to GenAI History format
+        const history: Content[] = messages
+            .filter(m => !m.isStreaming && m.text.trim() !== '')
+            .map(m => ({
+                role: m.role === Role.USER ? 'user' : 'model',
+                parts: [{ text: m.text }]
+            }));
+            
+        chatService.initChat(model, history);
+
+        // Optional: Add a welcome message if strictly empty and no history
+        if (messages.length === 0) {
+          setMessages([
+            {
+              id: 'welcome',
+              role: Role.MODEL,
+              text: `## Hello, Developer! 🚀\nI'm **Spurify Code**. I can help you with:\n\n- Writing and Refactoring Code\n- Debugging Errors\n- Explaining Complex Concepts\n\nI am currently running on **${model}**. How can I assist you today?`,
+              timestamp: Date.now(),
+            }
+          ]);
+        }
+      } catch (e) {
+        console.error("Failed to initialize chat", e);
       }
-    } catch (e) {
-      console.error("Failed to initialize chat", e);
+      initialized.current = true;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model]);
+  }, []);
 
+  // Save to LocalStorage effects
   useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messages));
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_MODEL, model);
+  }, [model]);
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -48,13 +85,30 @@ const App: React.FC = () => {
     if (newModel === model) return;
     setModel(newModel);
     setMessages([]); // Clear chat for new model context
-    chatService.reset();
-    setIsSidebarOpen(false); // Close sidebar on mobile on selection
+    chatService.initChat(newModel, []); // Init new session without history
+    setIsSidebarOpen(false); 
   };
 
   const handleClearChat = () => {
     setMessages([]);
-    chatService.initChat(model);
+    chatService.initChat(model, []);
+    localStorage.removeItem(STORAGE_KEY_MESSAGES);
+  };
+
+  const handleDownloadCode = async () => {
+    if (messages.length === 0) return;
+    
+    try {
+        const blob = await extractCodeFromMessages(messages);
+        if (blob) {
+            triggerDownload(blob, `spurify-code-${Date.now()}.zip`);
+        } else {
+            alert("No code blocks found to extract!");
+        }
+    } catch (e) {
+        console.error("Error zipping files", e);
+        alert("Failed to create zip file.");
+    }
   };
 
   const handleSendMessage = async (text: string) => {
@@ -71,7 +125,6 @@ const App: React.FC = () => {
     setIsLoading(true);
 
     const botMsgId = uuidv4();
-    // Placeholder for bot message
     setMessages((prev) => [
       ...prev,
       {
@@ -98,7 +151,6 @@ const App: React.FC = () => {
         );
       }
 
-      // Finalize message
       setMessages((prev) => 
         prev.map((msg) => 
           msg.id === botMsgId 
@@ -118,7 +170,6 @@ const App: React.FC = () => {
           timestamp: Date.now(),
         }
       ]);
-      // Remove the stuck empty loading message if it exists and is empty
       setMessages((prev) => prev.filter(m => !(m.id === botMsgId && m.text === '')));
     } finally {
       setIsLoading(false);
@@ -131,12 +182,12 @@ const App: React.FC = () => {
         currentModel={model} 
         onModelChange={handleModelChange} 
         onClear={handleClearChat}
+        onDownload={handleDownloadCode}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />
 
       <div className="flex-1 flex flex-col relative h-full w-full">
-        {/* Header (Mobile Only mostly) */}
         <div className="md:hidden flex items-center p-4 border-b border-gray-800 bg-[#0d1117]">
           <button 
             onClick={() => setIsSidebarOpen(true)}
@@ -147,7 +198,6 @@ const App: React.FC = () => {
           <span className="font-semibold ml-2">Spurify Code</span>
         </div>
 
-        {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth">
           <div className="max-w-4xl mx-auto">
             {messages.map((msg) => (
@@ -157,7 +207,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Input Area */}
         <div className="bg-[#0d1117]">
           <ChatInput onSend={handleSendMessage} isLoading={isLoading} />
         </div>

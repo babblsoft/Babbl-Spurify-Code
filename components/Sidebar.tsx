@@ -1,16 +1,17 @@
 import React from 'react';
-import { Settings, Plus, Github, Terminal, Zap, BrainCircuit } from 'lucide-react';
+import { Settings, Plus, Github, Terminal, Zap, BrainCircuit, Download } from 'lucide-react';
 import { ModelType } from '../types';
 
 interface SidebarProps {
   currentModel: ModelType;
   onModelChange: (model: ModelType) => void;
   onClear: () => void;
+  onDownload: () => void;
   isOpen: boolean;
   onClose: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentModel, onModelChange, onClear, isOpen, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentModel, onModelChange, onClear, onDownload, isOpen, onClose }) => {
   return (
     <>
       {/* Mobile Overlay */}
@@ -31,7 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentModel, onModelChange, onClear,
                 <Terminal size={24} />
                 <span>Spurify</span>
             </div>
-            <div className="text-xs text-gray-500 font-mono">v1.0</div>
+            <div className="text-xs text-gray-500 font-mono">v1.1</div>
         </div>
 
         <div className="p-4 flex-1 overflow-y-auto">
@@ -40,10 +41,21 @@ const Sidebar: React.FC<SidebarProps> = ({ currentModel, onModelChange, onClear,
                 onClear();
                 if (window.innerWidth < 768) onClose();
             }}
-            className="w-full flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors mb-6 font-medium"
+            className="w-full flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors mb-4 font-medium"
           >
             <Plus size={18} />
             New Chat
+          </button>
+
+          <button 
+            onClick={() => {
+                onDownload();
+                if (window.innerWidth < 768) onClose();
+            }}
+            className="w-full flex items-center gap-2 bg-[#21262d] hover:bg-[#30363d] text-gray-200 border border-gray-700 px-4 py-2 rounded-lg transition-colors mb-6 font-medium text-sm"
+          >
+            <Download size={16} />
+            Download Code
           </button>
 
           <div className="mb-8">

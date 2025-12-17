@@ -1,4 +1,4 @@
-import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, Chat, GenerateContentResponse, Content } from "@google/genai";
 import { API_MODELS, ModelType } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
@@ -22,7 +22,7 @@ export class ChatService {
 
   constructor() {}
 
-  public initChat(modelType: ModelType) {
+  public initChat(modelType: ModelType, history: Content[] = []) {
     const client = getAiClient();
     const modelName = API_MODELS[modelType];
     
@@ -32,15 +32,14 @@ export class ChatService {
     };
 
     if (modelType === ModelType.THINKING) {
-       // Enable thinking for the 2.5 flash model if requested (using a safe default budget)
-       // Note: This is an example. If the specific model doesn't support thinking, this might need adjustment.
-       // Assuming gemini-2.5-flash supports thinking via config.
+       // Enable thinking for the 2.5 flash model if requested
        config.thinkingConfig = { thinkingBudget: 1024 }; 
     }
 
     this.chatSession = client.chats.create({
       model: modelName,
       config: config,
+      history: history
     });
     this.currentModel = modelType;
   }
