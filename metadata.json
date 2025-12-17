@@ -1,0 +1,5 @@
+{
+  "name": "Spurify Code",
+  "description": "An intelligent, AI-powered coding assistant designed to help developers write, debug, and optimize code efficiently using Gemini models.",
+  "requestFramePermissions": []
+}
